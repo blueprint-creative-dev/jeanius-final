@@ -1796,46 +1796,39 @@ public static function render_timeline() {
  * Results screen – prints pre-formatted HTML from ACF “_md_copy” fields.
  * If those fields are still empty it triggers /generate once, then reloads.
  * ------------------------------------------------------------------*/
-public static function render_results() {
+public static function get_results_body_html( $post_id, $trigger_generation_action = true ) {
 
-	$post_id = \Jeanius\current_assessment_id();
-	if ( ! $post_id ) wp_die( 'Please log in.' );
+	if ( ! $post_id ) {
+		return '';
+	}
 
 	/* ── Grab HTML blocks ────────────────────────────────────────── */
 	$sections = [
-		'Ownership Stakes'     => get_field( 'ownership_stakes_md_copy',     $post_id ),
-		'Life Messages'        => get_field( 'life_messages_md_copy',        $post_id ),
+		'Ownership Stakes'     => get_field( 'ownership_stakes_md_copy', $post_id ),
+		'Life Messages'        => get_field( 'life_messages_md_copy', $post_id ),
 		'Transcendent Threads' => get_field( 'transcendent_threads_md_copy', $post_id ),
-		'Sum of Your Jeanius'  => get_field( 'sum_jeanius_md_copy',          $post_id ),
-		'College Essay Topics' => get_field( 'essay_topics_md_copy',         $post_id ),
+		'Sum of Your Jeanius'  => get_field( 'sum_jeanius_md_copy', $post_id ),
+		'College Essay Topics' => get_field( 'essay_topics_md_copy', $post_id ),
 	];
 
-        $is_ready   = array_filter( $sections ) !== [];      // any HTML present?
+	$is_ready = array_filter( $sections ) !== []; // any HTML present?
 
-        if ( $is_ready ) {
-                $pending_flag = get_post_meta( $post_id, '_jeanius_assessment_generated_pending', true );
-                $already_ran  = get_post_meta( $post_id, '_jeanius_assessment_generated_at', true );
+	if ( $trigger_generation_action && $is_ready ) {
+		$pending_flag = get_post_meta( $post_id, '_jeanius_assessment_generated_pending', true );
+		$already_ran  = get_post_meta( $post_id, '_jeanius_assessment_generated_at', true );
 
-                if ( $pending_flag || ( '' === $pending_flag && '' === $already_ran ) ) {
-                        do_action( 'jeanius_assessment_generated', $post_id );
-                        delete_post_meta( $post_id, '_jeanius_assessment_generated_pending' );
-                        update_post_meta( $post_id, '_jeanius_assessment_generated_at', current_time( 'timestamp' ) );
-                }
-        }
+		if ( $pending_flag || ( '' === $pending_flag && '' === $already_ran ) ) {
+			do_action( 'jeanius_assessment_generated', $post_id );
+			delete_post_meta( $post_id, '_jeanius_assessment_generated_pending' );
+			update_post_meta( $post_id, '_jeanius_assessment_generated_at', current_time( 'timestamp' ) );
+		}
+	}
 
-        $rest_nonce = wp_create_nonce( 'wp_rest' );
+	$rest_nonce = wp_create_nonce( 'wp_rest' );
+
+	ob_start();
 	?>
-<!DOCTYPE html>
-<html <?php language_attributes(); ?>>
-
-<head>
-    <meta charset="<?php bloginfo( 'charset' ); ?>">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <?php wp_head(); ?>
-</head>
-
-<body class="results-page" <?php body_class('student-report'); ?>>
+<body class="results-page" <?php body_class( 'student-report' ); ?>>
     <div id="loading" <?php if ( $is_ready ) echo ' style="display:none"'; ?>>
         Generating your report… this may take up to a minute.
     </div>
@@ -2121,7 +2114,32 @@ public static function render_results() {
     </footer>
     <?php wp_footer(); ?>
 </body>
+<?php
+	return ob_get_clean();
+}
 
-</html><?php
+public static function render_results() {
+
+	$post_id = \Jeanius\current_assessment_id();
+	if ( ! $post_id ) wp_die( 'Please log in.' );
+
+	$body_html = self::get_results_body_html( $post_id );
+
+	?>
+<!DOCTYPE html>
+<html <?php language_attributes(); ?>>
+
+<head>
+    <meta charset="<?php bloginfo( 'charset' ); ?>">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <?php wp_head(); ?>
+</head>
+
+<?php
+	echo $body_html;
+	?>
+</html>
+<?php
 }
 }
