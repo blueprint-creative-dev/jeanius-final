@@ -88,6 +88,8 @@ class JeaniusAI {
         delete_post_meta($post_id, '_jeanius_generation_errors');
         delete_post_meta($post_id, '_jeanius_generation_started');
         delete_post_meta($post_id, '_jeanius_generation_last_activity');
+        delete_post_meta($post_id, '_jeanius_assessment_generated_pending');
+        delete_post_meta($post_id, '_jeanius_assessment_generated_at');
         
         // Also delete temporary data from previous attempts
         delete_post_meta($post_id, '_jeanius_stakes');
@@ -366,8 +368,10 @@ class JeaniusAI {
         delete_post_meta($post_id, '_jeanius_summary_formatted');
         delete_post_meta($post_id, '_jeanius_generation_errors');
 
-        // Allow additional tasks (PDF generation, ActiveCampaign sync, etc.)
-        \do_action('jeanius_assessment_generated', $post_id);
+
+        // Flag that downstream automation should run when the results page is viewed
+        update_post_meta($post_id, '_jeanius_assessment_generated_pending', '1');
+        delete_post_meta($post_id, '_jeanius_assessment_generated_at');
     }
     
     /**

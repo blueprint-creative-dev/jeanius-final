@@ -1248,6 +1248,10 @@ function jeanius_extend_regenerate_assessment($post_id) {
     
     error_log('Regeneration button pressed for assessment #' . $post_id);
 
+    // Reset downstream automation flags so they can run after regeneration completes
+    delete_post_meta($post_id, '_jeanius_assessment_generated_pending');
+    delete_post_meta($post_id, '_jeanius_assessment_generated_at');
+
     $keep = [
         'dob',
         'consent_granted',
@@ -1278,8 +1282,6 @@ function jeanius_extend_regenerate_assessment($post_id) {
             wp_schedule_single_event(time() + 5, 'jeanius_delayed_pdf_generation', array($post_id));
             error_log('Scheduled delayed PDF generation for assessment #' . $post_id);
             
-            // Also trigger the action immediately 
-            do_action('jeanius_assessment_generated', $post_id);
         } catch (Exception $e) {
             error_log('Error during assessment regeneration: ' . $e->getMessage());
         }
