@@ -1248,6 +1248,10 @@ function jeanius_extend_regenerate_assessment($post_id) {
     
     error_log('Regeneration button pressed for assessment #' . $post_id);
 
+    // Reset downstream automation flags so they can run after regeneration completes
+    delete_post_meta($post_id, '_jeanius_assessment_generated_pending');
+    delete_post_meta($post_id, '_jeanius_assessment_generated_at');
+
     $keep = [
         'dob',
         'consent_granted',
@@ -1278,8 +1282,6 @@ function jeanius_extend_regenerate_assessment($post_id) {
             wp_schedule_single_event(time() + 5, 'jeanius_delayed_pdf_generation', array($post_id));
             error_log('Scheduled delayed PDF generation for assessment #' . $post_id);
             
-            // Also trigger the action immediately 
-            do_action('jeanius_assessment_generated', $post_id);
         } catch (Exception $e) {
             error_log('Error during assessment regeneration: ' . $e->getMessage());
         }
@@ -1478,18 +1480,6 @@ function send_results_pdf_from_dom()
         error_log('Error creating attachment: ' . $e->getMessage());
         wp_send_json_error("Error adding PDF to media library: " . $e->getMessage());
         return;
-    }
-    
-    // SEND TAGS TO ACTIVE CAMPAIGN
-    // This is the new code to tag contacts in ActiveCampaign
-    jeanius_send_activecampaign_tags($current_user->user_email, $parent_email, $post_id);
-    
-    // Send PDF URL to ActiveCampaign for student only
-    if ($attach_id) {
-        $pdf_url = wp_get_attachment_url($attach_id);
-        if ($pdf_url) {
-            jeanius_send_pdf_to_activecampaign($current_user->user_email, $pdf_url);
-        }
     }
     
     if ($sent) {

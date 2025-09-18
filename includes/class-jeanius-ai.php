@@ -88,6 +88,8 @@ class JeaniusAI {
         delete_post_meta($post_id, '_jeanius_generation_errors');
         delete_post_meta($post_id, '_jeanius_generation_started');
         delete_post_meta($post_id, '_jeanius_generation_last_activity');
+        delete_post_meta($post_id, '_jeanius_assessment_generated_pending');
+        delete_post_meta($post_id, '_jeanius_assessment_generated_at');
         
         // Also delete temporary data from previous attempts
         delete_post_meta($post_id, '_jeanius_stakes');
@@ -357,7 +359,7 @@ class JeaniusAI {
                 "## College Essay Topics\n$essay_md";
                 
         update_field('jeanius_report_md', $full, $post_id);
-        
+
         // Clean up temporary data
         delete_post_meta($post_id, '_jeanius_stakes');
         delete_post_meta($post_id, '_jeanius_life_messages');
@@ -365,6 +367,10 @@ class JeaniusAI {
         delete_post_meta($post_id, '_jeanius_summary');
         delete_post_meta($post_id, '_jeanius_summary_formatted');
         delete_post_meta($post_id, '_jeanius_generation_errors');
+
+        // Flag that downstream automation should run when the results page is viewed
+        update_post_meta($post_id, '_jeanius_assessment_generated_pending', '1');
+        delete_post_meta($post_id, '_jeanius_assessment_generated_at');
     }
     
     /**

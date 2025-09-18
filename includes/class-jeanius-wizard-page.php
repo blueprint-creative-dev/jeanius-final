@@ -1810,8 +1810,20 @@ public static function render_results() {
 		'College Essay Topics' => get_field( 'essay_topics_md_copy',         $post_id ),
 	];
 
-	$is_ready   = array_filter( $sections ) !== [];      // any HTML present?
-	$rest_nonce = wp_create_nonce( 'wp_rest' );
+        $is_ready   = array_filter( $sections ) !== [];      // any HTML present?
+
+        if ( $is_ready ) {
+                $pending_flag = get_post_meta( $post_id, '_jeanius_assessment_generated_pending', true );
+                $already_ran  = get_post_meta( $post_id, '_jeanius_assessment_generated_at', true );
+
+                if ( $pending_flag || ( '' === $pending_flag && '' === $already_ran ) ) {
+                        do_action( 'jeanius_assessment_generated', $post_id );
+                        delete_post_meta( $post_id, '_jeanius_assessment_generated_pending' );
+                        update_post_meta( $post_id, '_jeanius_assessment_generated_at', current_time( 'timestamp' ) );
+                }
+        }
+
+        $rest_nonce = wp_create_nonce( 'wp_rest' );
 	?>
 <!DOCTYPE html>
 <html <?php language_attributes(); ?>>
