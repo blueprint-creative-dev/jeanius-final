@@ -1090,38 +1090,49 @@ function jeanius_auto_generate_pdf($post_id) {
         // Update using our improved function
         $updated = jeanius_update_pdf_acf_field($attachment_id, $post_id);
         error_log('Auto-generation PDF field update: ' . ($updated ? 'success' : 'failed'));
-        
+
         // Also update a custom field to indicate PDF was generated
         update_field('pdf_generated', true, $post_id);
-        
+
+        // Send PDF to student/parent if allowed by guards
+        $pdf_path = get_attached_file($attachment_id);
+        if ($pdf_path) {
+            $email_result = jeanius_send_assessment_pdf($post_id, $pdf_path, $attachment_id);
+            if (!empty($email_result['skipped'])) {
+                error_log('Automatic PDF email skipped for assessment #' . $post_id . ' due to guard state.');
+            }
+        } else {
+            error_log('Unable to determine PDF path for attachment #' . $attachment_id . ' (assessment #' . $post_id . ').');
+        }
+
         // Get student email to send PDF URL to ActiveCampaign
         $student_email = '';
         $parent_email = '';
-        
+
         $user_id = $post->post_author;
         $user = get_user_by('id', $user_id);
         if ($user) {
             $student_email = $user->user_email;
             $parent_email = get_field('parent_email', $post_id);
-            
+
             // Update the PDF URL in ActiveCampaign for student only
             $pdf_url = wp_get_attachment_url($attachment_id);
             if ($pdf_url && !empty($student_email)) {
                 jeanius_send_pdf_to_activecampaign($student_email, $pdf_url);
-                
+
                 // Apply appropriate tags
                 $api_url = 'https://jeanius.api-us1.com';
                 $api_key = '9894fe769165e0b980a18805453f80104af4b44a68038a7f3bf0831e197328571c688b45';
-                
+
                 // Apply tags
                 jeanius_apply_activecampaign_tag($api_url, $api_key, $student_email, 'Assessment_Completed_Student');
-                
+
                 if (!empty($parent_email)) {
                     jeanius_apply_activecampaign_tag($api_url, $api_key, $parent_email, 'Assessment_Completed_Parent');
                 }
             }
         }
-        
+
         return $attachment_id;
     }
     
@@ -1306,6 +1317,86 @@ function jeanius_delayed_pdf_generation($post_id) {
 }
 add_action('jeanius_delayed_pdf_generation', 'jeanius_delayed_pdf_generation');
 
+function jeanius_send_assessment_pdf($post_id, $pdf_path, $attachment_id = 0, $force_send = false)
+{
+    $result = array(
+        'student_sent' => false,
+        'parent_sent' => false,
+        'skipped' => false,
+    );
+
+    if (!$post_id || empty($pdf_path)) {
+        error_log('jeanius_send_assessment_pdf: Missing post ID or PDF path.');
+        return $result;
+    }
+
+    $post = get_post($post_id);
+    if (!$post) {
+        error_log('jeanius_send_assessment_pdf: Invalid assessment #' . $post_id);
+        return $result;
+    }
+
+    if (!file_exists($pdf_path)) {
+        error_log('jeanius_send_assessment_pdf: PDF path does not exist for assessment #' . $post_id . ' (' . $pdf_path . ')');
+        return $result;
+    }
+
+    if (!$force_send) {
+        $pending_flag = get_post_meta($post_id, '_jeanius_assessment_generated_pending', true);
+        $already_ran = get_post_meta($post_id, '_jeanius_assessment_generated_at', true);
+
+        $allow_send = false;
+        if ('' !== $pending_flag) {
+            $allow_send = true;
+        } elseif ('' === $pending_flag && '' === $already_ran) {
+            $allow_send = true;
+        }
+
+        if (!$allow_send) {
+            $result['skipped'] = true;
+            error_log('jeanius_send_assessment_pdf: Skipping automatic email for assessment #' . $post_id . ' (guards active).');
+            return $result;
+        }
+    }
+
+    $student_email = '';
+    $student = get_user_by('id', $post->post_author);
+    if ($student && !empty($student->user_email)) {
+        $student_email = $student->user_email;
+    }
+
+    $parent_email = get_field('parent_email', $post_id);
+
+    if (empty($student_email) && empty($parent_email)) {
+        error_log('jeanius_send_assessment_pdf: No recipients found for assessment #' . $post_id);
+        return $result;
+    }
+
+    $subject = "Your Jeanius Report PDF";
+    $body = "Please find the attached report.";
+    $headers = ['Content-Type: text/html; charset=UTF-8'];
+    $attachments = [$pdf_path];
+
+    $from_name_filter = function () {
+        return 'Jeanius';
+    };
+    add_filter('wp_mail_from_name', $from_name_filter);
+
+    if (!empty($student_email)) {
+        $result['student_sent'] = wp_mail($student_email, $subject, $body, $headers, $attachments);
+        error_log('jeanius_send_assessment_pdf: Email to student (' . $student_email . ') for assessment #' . $post_id . ': ' . ($result['student_sent'] ? 'sent' : 'failed'));
+    }
+
+    if (!empty($parent_email)) {
+        $result['parent_sent'] = wp_mail($parent_email, $subject, $body, $headers, $attachments);
+        error_log('jeanius_send_assessment_pdf: Email to parent (' . $parent_email . ') for assessment #' . $post_id . ': ' . ($result['parent_sent'] ? 'sent' : 'failed'));
+    }
+
+    remove_filter('wp_mail_from_name', $from_name_filter);
+
+    return $result;
+}
+
 function send_results_pdf_from_dom()
 {
     if (empty($_POST['html'])) {
@@ -1314,9 +1405,9 @@ function send_results_pdf_from_dom()
 
     // Get post ID from the AJAX request
     $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
-    
+
     error_log('PDF button pressed for assessment #' . $post_id);
-    
+
     $raw_html = stripslashes($_POST['html']);
 
     $raw_html = preg_replace('/<a[^>]*id=["\']sendPdfBtn["\'][^>]*>.*?<\/a>/is', '', $raw_html);
@@ -1355,16 +1446,16 @@ function send_results_pdf_from_dom()
         $options->set('fontDir', __DIR__ . '/fonts');
         $options->set('isPhpEnabled', true);
         $options->setChroot(get_home_path());
-    
+
         $dompdf = new Dompdf($options);
-    
+
         // Important: This makes relative paths in CSS work
         $dompdf->setBasePath(home_url());
-    
+
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
-    
+
         // Page numbers
         $canvas = $dompdf->getCanvas();
         $canvas->page_script(function ($pageNumber, $pageCount, $canvas, $fontMetrics) {
@@ -1382,70 +1473,44 @@ function send_results_pdf_from_dom()
         return;
     }
 
-    // Get current user
     $current_user = wp_get_current_user();
-    
+
     // Generate a unique filename with timestamp
     $timestamp = date('Y-m-d-H-i-s');
     $filename = 'jeanius-report-' . $current_user->ID . '-' . $timestamp . '.pdf';
-    
+
     // Create the uploads directory path
     $upload_dir = wp_upload_dir();
     $pdf_path = $upload_dir['basedir'] . '/' . $filename;
-    
+
     try {
         // Save the PDF file
         $pdf_content = $dompdf->output();
         $bytes_written = file_put_contents($pdf_path, $pdf_content);
-        
+
         if ($bytes_written === false) {
             error_log('Failed to write PDF file to ' . $pdf_path);
             wp_send_json_error("Failed to save PDF file.");
             return;
         }
-        
+
         error_log('Successfully saved PDF to ' . $pdf_path . ' (' . $bytes_written . ' bytes)');
     } catch (Exception $e) {
         error_log('Error saving PDF file: ' . $e->getMessage());
         wp_send_json_error("Error saving PDF: " . $e->getMessage());
         return;
     }
-    
-    // Get parent email from ACF field if post_id is available
-    $parent_email = '';
-    if ($post_id > 0) {
-        $parent_email = get_field('parent_email', $post_id);
-    }
-    
-    // Set up email parameters
-    $to = $current_user->user_email;
-    $subject = "Your Jeanius Report PDF";
-    $body = "Please find the attached report.";
-    $headers = ['Content-Type: text/html; charset=UTF-8'];
 
-    add_filter('wp_mail_from_name', function () {
-        return 'Jeanius';
-    });
-
-    // Send to current user
-    $sent = wp_mail($to, $subject, $body, $headers, [$pdf_path]);
-    
-    // Also send to parent email if available
-    $parent_sent = false;
-    if (!empty($parent_email)) {
-        $parent_sent = wp_mail($parent_email, $subject, $body, $headers, [$pdf_path]);
-    }
-    
     // SAVE TO MEDIA LIBRARY
-    
+
     // Make sure we have required functions
     require_once(ABSPATH . 'wp-admin/includes/file.php');
     require_once(ABSPATH . 'wp-admin/includes/media.php');
     require_once(ABSPATH . 'wp-admin/includes/image.php');
-    
+
     // Get file info
     $filetype = wp_check_filetype($filename, null);
-    
+
     // Prepare attachment data
     $attachment = array(
         'guid'           => $upload_dir['url'] . '/' . $filename,
@@ -1454,23 +1519,23 @@ function send_results_pdf_from_dom()
         'post_content'   => '',
         'post_status'    => 'inherit'
     );
-    
+
     try {
         // Insert attachment
         $attach_id = wp_insert_attachment($attachment, $pdf_path, $post_id);
-        
+
         if (!$attach_id || is_wp_error($attach_id)) {
             error_log('Failed to create attachment for PDF: ' . (is_wp_error($attach_id) ? $attach_id->get_error_message() : 'Unknown error'));
             wp_send_json_error("Failed to add PDF to media library.");
             return;
         }
-        
+
         // Generate metadata for the attachment
         $attach_data = wp_generate_attachment_metadata($attach_id, $pdf_path);
         wp_update_attachment_metadata($attach_id, $attach_data);
-        
+
         error_log('Successfully created PDF attachment #' . $attach_id . ' for assessment #' . $post_id);
-        
+
         // Update the ACF field with the PDF attachment
         if ($post_id > 0) {
             $updated = jeanius_update_pdf_acf_field($attach_id, $post_id);
@@ -1481,18 +1546,20 @@ function send_results_pdf_from_dom()
         wp_send_json_error("Error adding PDF to media library: " . $e->getMessage());
         return;
     }
-    
-    if ($sent) {
+
+    $email_result = jeanius_send_assessment_pdf($post_id, $pdf_path, $attach_id, true);
+
+    if (!empty($email_result['student_sent']) || !empty($email_result['parent_sent'])) {
         $response = array(
             "message" => "PDF emailed successfully!",
             "attachment_id" => $attach_id,
             "file_url" => wp_get_attachment_url($attach_id)
         );
-        
-        if (!empty($parent_email)) {
-            $response["parent_email_sent"] = $parent_sent;
+
+        if (!empty($email_result['parent_sent'])) {
+            $response["parent_email_sent"] = $email_result['parent_sent'];
         }
-        
+
         wp_send_json_success($response);
     } else {
         wp_send_json_error("Failed to send PDF email.");
