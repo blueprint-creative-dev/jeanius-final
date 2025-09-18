@@ -1,0 +1,175 @@
+/**
+ * Jeanius Admin Styles
+ * Styles for the Jeanius admin interface
+ */
+
+/* Status Container */
+.jeanius-status-container {
+  padding: 15px;
+  background: #f9f9f9;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  border-left: 4px solid #ccc;
+}
+
+/* Status Indicator */
+.jeanius-status-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.jeanius-status-indicator {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 8px;
+  background-color: #ccc;
+}
+
+.jeanius-status-label {
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+/* Status-specific styles */
+.status-complete {
+  border-left-color: #46b450;
+}
+
+.status-complete .jeanius-status-indicator {
+  background-color: #46b450;
+}
+
+.status-in-progress {
+  border-left-color: #00a0d2;
+}
+
+.status-in-progress .jeanius-status-indicator {
+  background-color: #00a0d2;
+  animation: pulse 1.5s infinite;
+}
+
+.status-waiting {
+  border-left-color: #ffba00;
+}
+
+.status-waiting .jeanius-status-indicator {
+  background-color: #ffba00;
+}
+
+.status-error {
+  border-left-color: #dc3232;
+}
+
+.status-error .jeanius-status-indicator {
+  background-color: #dc3232;
+}
+
+.status-not-started {
+  border-left-color: #ccc;
+}
+
+.status-not-started .jeanius-status-indicator {
+  background-color: #ccc;
+}
+
+/* Progress Bar */
+.jeanius-progress-bar-container {
+  height: 8px;
+  background-color: #e5e5e5;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 15px;
+}
+
+.jeanius-progress-bar {
+  height: 100%;
+  background-color: #00a0d2;
+  border-radius: 4px;
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+.status-complete .jeanius-progress-bar {
+  background-color: #46b450;
+}
+
+.status-error .jeanius-progress-bar {
+  background-color: #dc3232;
+}
+
+.status-waiting .jeanius-progress-bar {
+  background-color: #ffba00;
+}
+
+/* Status Message */
+.jeanius-status-message {
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+/* Status Errors */
+.jeanius-status-errors {
+  margin-top: 10px;
+  padding: 10px;
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-radius: 4px;
+  color: #721c24;
+  font-size: 12px;
+}
+
+/* Last Activity */
+.jeanius-status-last-activity {
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-style: italic;
+  color: #666;
+}
+
+/* Actions */
+.jeanius-status-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 15px;
+}
+
+.jeanius-status-actions button {
+  min-width: 120px;
+}
+
+/* Animation for the status indicator */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Make the regenerate button more noticeable in ACF */
+.acf-field[data-key="field_68af564391c91"] button {
+  background-color: #2271b1;
+  color: white;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.2s;
+}
+
+.acf-field[data-key="field_68af564391c91"] button:hover {
+  background-color: #135e96;
+}
+
+/* Add some spacing to the ACF field */
+.acf-field[data-key="field_68af564391c91"] .acf-input {
+  margin-top: 10px;
+}
