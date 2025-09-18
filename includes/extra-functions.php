@@ -1480,18 +1480,6 @@ function send_results_pdf_from_dom()
         return;
     }
     
-    // SEND TAGS TO ACTIVE CAMPAIGN
-    // This is the new code to tag contacts in ActiveCampaign
-    jeanius_send_activecampaign_tags($current_user->user_email, $parent_email, $post_id);
-    
-    // Send PDF URL to ActiveCampaign for student only
-    if ($attach_id) {
-        $pdf_url = wp_get_attachment_url($attach_id);
-        if ($pdf_url) {
-            jeanius_send_pdf_to_activecampaign($current_user->user_email, $pdf_url);
-        }
-    }
-    
     if ($sent) {
         $response = array(
             "message" => "PDF emailed successfully!",
