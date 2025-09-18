@@ -1045,42 +1045,22 @@ function jeanius_auto_generate_pdf($post_id) {
         return $existing_pdf;
     }
     
-    // Get the assessment content
     $post = get_post($post_id);
-    $content = $post->post_content;
-    
-    // If no content, try to get it from an ACF field instead
-    if (empty($content)) {
-        $content = get_field('assessment_content', $post_id);
-        
-        // Try other possible field names
-        if (empty($content)) {
-            $possible_fields = ['report_content', 'full_report', 'content'];
-            foreach ($possible_fields as $field_name) {
-                $content = get_field($field_name, $post_id);
-                if (!empty($content)) {
-                    error_log('Found content in field: ' . $field_name);
-                    break;
-                }
-            }
-        }
-        
-        // If still no content, try post excerpt
-        if (empty($content) && !empty($post->post_excerpt)) {
-            $content = $post->post_excerpt;
-        }
-        
-        // If still no content, return
-        if (empty($content)) {
-            error_log('No content found for assessment #' . $post_id);
-            return false;
-        }
+    if ( ! $post ) {
+        error_log('Assessment post not found for #' . $post_id);
+        return false;
     }
-    
-    error_log('Found content for assessment #' . $post_id . ' (' . strlen($content) . ' bytes)');
-    
-    // Process the content into proper HTML for PDF
-    $raw_html = prepare_assessment_html_for_pdf($content, $post_id);
+
+    $results_html = \Jeanius\Wizard_Page::get_results_body_html($post_id, false);
+
+    if ( '' === trim( $results_html ) ) {
+        error_log('Results HTML is empty for assessment #' . $post_id);
+        return false;
+    }
+
+    error_log('Captured results HTML for assessment #' . $post_id . ' (' . strlen( $results_html ) . ' bytes)');
+
+    $raw_html = prepare_assessment_html_for_pdf($results_html, $post_id);
     
     // Create the PDF
     $attachment_id = generate_assessment_pdf($raw_html, $post_id);
