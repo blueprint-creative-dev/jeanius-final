@@ -61,21 +61,24 @@ class Gravity {
         $user = get_userdata($user_id);
         if ($user) {
             $student_email = $user->user_email;
-            
+
             // 5. Generate the password reset link
             $key = get_password_reset_key($user);
             if (!is_wp_error($key)) {
                 // Build the password reset URL - using custom format
                 $reset_url = site_url("/password-setting/?key=$key&user=" . rawurlencode($user->user_email));
 
-                
+
                 // 6. Send the password reset URL to ActiveCampaign
                 self::send_password_link_to_activecampaign($student_email, $reset_url);
+
+                // 7. Send custom onboarding email with the same reset link
+                self::send_onboarding_email($user, $reset_url);
             }
         }
-        
-        // 7. Email welcome (optional if GF already sent one)
-        wp_new_user_notification( $user_id, null, 'both' );
+
+        // Notify admin only, avoid triggering default user reset email
+        wp_new_user_notification( $user_id, null, 'admin' );
     }
     
     /**
@@ -167,9 +170,9 @@ class Gravity {
             error_log('Failed to create field value: ' . $create_value_response->get_error_message());
             return false;
         }
-        
+
         $create_result = json_decode(wp_remote_retrieve_body($create_value_response), true);
-        
+
         if (isset($create_result['fieldValue'])) {
             error_log('Successfully sent password reset link to ActiveCampaign for email: ' . $email);
             return true;
@@ -177,5 +180,30 @@ class Gravity {
             error_log('Failed to send password reset link to ActiveCampaign. Response: ' . wp_remote_retrieve_body($create_value_response));
             return false;
         }
+    }
+
+    /**
+     * Send a custom onboarding email that re-uses the generated reset URL.
+     *
+     * @param \WP_User $user The user who just registered.
+     * @param string   $reset_url The password reset URL generated for the user.
+     *
+     * @return void
+     */
+    private static function send_onboarding_email($user, $reset_url) {
+        if (empty($user->user_email)) {
+            return;
+        }
+
+        $student_name = !empty($user->display_name) ? $user->display_name : $user->user_login;
+
+        $subject = 'Welcome to Jeanius – Activate Your Account';
+        $message = sprintf(
+            "Hi %s,\n\nWelcome to Jeanius! To get started, please set your password using the link below:\n%s\n\nIf you didn\'t request this account, please ignore this email.\n\nThanks,\nThe Jeanius Team",
+            $student_name,
+            $reset_url
+        );
+
+        wp_mail($user->user_email, $subject, $message);
     }
 }
